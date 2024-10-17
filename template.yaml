@@ -1,0 +1,226 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Medical Appointment Scheduling System
+
+Globals:
+  Function:
+    Timeout: 3
+    Runtime: nodejs20.x
+
+Resources:
+  # API Gateway
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Auth:
+        ApiKeyRequired: true
+
+  # API Key
+  ApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    DependsOn:
+      - ApiGateway
+      - ApiGatewayProdStage
+    Properties:
+      Enabled: true
+      StageKeys:
+        - RestApiId: !Ref ApiGateway
+          StageName: Prod
+
+  # Usage Plan
+  UsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn:
+      - ApiGateway
+      - ApiGatewayProdStage
+    Properties:
+      ApiStages:
+        - ApiId: !Ref ApiGateway
+          Stage: Prod
+      Description: Usage plan for Medical Appointment Scheduling System
+      Quota:
+        Limit: 10000
+        Period: MONTH
+      Throttle:
+        BurstLimit: 200
+        RateLimit: 100
+
+  # Usage Plan Key
+  UsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    DependsOn:
+      - ApiGateway
+      - ApiGatewayProdStage
+    Properties:
+      KeyId: !Ref ApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref UsagePlan
+    DependsOn: UsagePlan
+
+  # SQS Queues
+  PeruSQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: PeruAppointmentQueue.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: true
+
+  ChileSQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: ChileAppointmentQueue.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: true
+
+  # Lambda Functions
+  PeruLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: src/peru-lambda/index.handler
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt PeruSQSQueue.Arn
+            BatchSize: 10
+      Policies:
+        - SQSPollerPolicy:
+            QueueName: !GetAtt PeruSQSQueue.QueueName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AppointmentsTable
+
+  ChileLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: src/chile-lambda/index.handler
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ChileSQSQueue.Arn
+            BatchSize: 10
+      Policies:
+        - SQSPollerPolicy:
+            QueueName: !GetAtt ChileSQSQueue.QueueName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AppointmentsTable
+
+  ConsultationLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: src/consultation/index.handler
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /appointments
+            Method: get
+            RestApiId: !Ref ApiGateway
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref AppointmentsTable
+
+  # DynamoDB Table
+  AppointmentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Appointments
+      AttributeDefinitions:
+        - AttributeName: appointment_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: appointment_id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  # API Gateway Routes
+  PeruPostRoute:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: peru
+
+  PeruPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: POST
+      ResourceId: !Ref PeruPostRoute
+      RestApiId: !Ref ApiGateway
+      AuthorizationType: NONE
+      ApiKeyRequired: true
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:sqs:path/${AWS::AccountId}/${PeruSQSQueue.QueueName}
+        Credentials: !GetAtt ApiGatewaySQSRole.Arn
+        RequestParameters:
+          integration.request.header.Content-Type: "'application/x-www-form-urlencoded'"
+        RequestTemplates:
+          application/json: "Action=SendMessage&MessageBody=$input.body"
+        IntegrationResponses:
+          - StatusCode: 200
+    DependsOn: ApiGateway
+
+  ChilePostRoute:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: chile
+
+  ChilePostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: POST
+      ResourceId: !Ref ChilePostRoute
+      RestApiId: !Ref ApiGateway
+      AuthorizationType: NONE
+      ApiKeyRequired: true
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:sqs:path/${AWS::AccountId}/${ChileSQSQueue.QueueName}
+        Credentials: !GetAtt ApiGatewaySQSRole.Arn
+        RequestParameters:
+          integration.request.header.Content-Type: "'application/x-www-form-urlencoded'"
+        RequestTemplates:
+          application/json: "Action=SendMessage&MessageBody=$input.body"
+        IntegrationResponses:
+          - StatusCode: 200
+    DependsOn: ApiGateway
+
+  # IAM Role for API Gateway to SQS
+  ApiGatewaySQSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ApiGatewaySQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  - !GetAtt PeruSQSQueue.Arn
+                  - !GetAtt ChileSQSQueue.Arn
+
+Outputs:
+  ApiEndpoint:
+    Description: "API Gateway endpoint URL for Prod stage"
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+  ApiKey:
+    Description: "API Key for authentication"
+    Value: !Ref ApiKey
