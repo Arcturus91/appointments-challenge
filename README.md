@@ -40,9 +40,17 @@ Se implementa Colas SQS FIFO y funciones Lambda específicas por país.
 API Gateway enruta solicitudes según el país en base al url endpoint (peru o chile)
 
 Rutas:
+Perú:
 
 - https://d1c7g4k80qnjy0.cloudfront.net/Prod/peru
+
+  Chile:
+
 - https://d1c7g4k80qnjy0.cloudfront.net/Prod/chile
+
+  Consulta general de las citas:
+
+- https://d1c7g4k80qnjy0.cloudfront.net/Prod/appointments
 
 Agregar nuevo país:
 
