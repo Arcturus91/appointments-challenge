@@ -40,7 +40,8 @@ Se implementa Colas SQS FIFO y funciones Lambda específicas por país.
 API Gateway enruta solicitudes según el país en base al url endpoint (peru o chile)
 
 Rutas:
-Perú:
+
+    Perú:
 
 - https://d1c7g4k80qnjy0.cloudfront.net/Prod/peru
 
@@ -67,8 +68,8 @@ Ruta para nuevo país:
 
 Soluciones para potenciles cuellos de botella:
 
-- Modificación de planes de uso (API Gateway usage plan). Actualmente, se tiene un límite
-- Optimización de funciones Lambda (aumento de memoria de lambdas, implementación de lambda layers)
+- Modificación de planes de uso (API Gateway usage plan). Actualmente, se tiene un límite de 100 requests por segundo, con un burst de 200 requests por segundo, y límite mensual de 10,000 requests por mes. Sin embargo, esto es modificable.
+- Optimización de funciones Lambda (aumento de memoria de lambdas, implementación de lambda layers para reducir cold starts.)
 - Aumento de la porción de eventos SQS que puede procesar cada lambda (SQS trigger batch size)
 
 ![apigateway usage plan Image](support-image-readme/api-gateway-usage-plan.png)
