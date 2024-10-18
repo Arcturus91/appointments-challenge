@@ -1,26 +1,43 @@
-exports.handler = async (event) => {
-  try {
-    console.log("event peru", event);
+const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+const { DynamoDBDocumentClient, PutCommand } = require("@aws-sdk/lib-dynamodb");
 
-    for (const record of event.Records) {
-      const appointmentData = JSON.parse(record.body);
+const client = new DynamoDBClient({});
+const ddbDocClient = DynamoDBDocumentClient.from(client);
 
-      console.log("Appointment Data:", appointmentData);
+const processMessageAsync = async (record, context) => {
+  const appointmentData = JSON.parse(record.body);
+  console.log("Appointment Data:", appointmentData);
+  console.log("Processing appointment:", appointmentData.appointmentId);
 
-      console.log("Processing appointment:", appointmentData.appointmentId);
+  const item = {
+    appointment_id: appointmentData.appointmentId,
+    country: appointmentData.country,
+    status: appointmentData.status,
+  };
+
+  const command = new PutCommand({
+    TableName: "Appointments",
+    Item: item,
+  });
+
+  await ddbDocClient.send(command);
+  console.log(`Appointment ${appointmentData.appointmentId} saved to DynamoDB`);
+};
+
+exports.handler = async (event, context) => {
+  console.log("Event:", JSON.stringify(event, null, 2));
+
+  const batchItemFailures = [];
+
+  for (const record of event.Records) {
+    try {
+      await processMessageAsync(record, context);
+    } catch (error) {
+      console.error("Error processing appointment:", error);
+      batchItemFailures.push({ itemIdentifier: record.messageId });
     }
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        message: "Appointments peru processed successfully",
-      }),
-    };
-  } catch (error) {
-    console.error("Error processing appointments:", error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ message: "Internal server error" }),
-    };
   }
+
+  console.log("Batch Item Failures:", batchItemFailures);
+  return { batchItemFailures };
 };
