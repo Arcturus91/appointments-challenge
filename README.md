@@ -4,7 +4,7 @@
 
 ![architecture Image](support-image-readme/appointmentChallenge.png)
 
-La arquitectura propuesta utiliza servicios serverless de AWS para crear un sistema que es escalable, mantenible y confiable para gendamiento de citas
+La arquitectura propuesta utiliza servicios serverless de AWS para crear un sistema que es escalable, mantenible y confiable para agendamiento de citas. Además, al haberse construído en gran parte con una plantilla SAM, permite replicar el código en otras regiones para aumentar resiliencia.
 
 - AWS Cloudfront con WAF y Shield: Protección ante injección SQL y ataques DDoS, respectivamente.
 - API Gateway: Punto de acceso para solicitudes. Se implementó 4 rutas principales: 2 POST para Perú & Chile, 1 POST para cambiar status de citas y 1 GET para recibir todas las citas. Nota: Ruta POST para cambiar status hecha de manera manual.
@@ -20,6 +20,10 @@ Flujo de datos:
 1. Solicitudes llegan a Cloudfront edge, luego alcanzan API Gateway y se enrutan a colas SQS FIFO por país.
 2. Funciones Lambda procesan las solicitudes y actualizan DynamoDB.
 3. DynamoDB almacena los datos de las citas con actualizaciones de estado.
+
+Siguiente imagen muestra como una SQS es un trigger de Lambda:
+
+![architecture Image](support-image-readme/sqs-trigger-lambda.png)
 
 ## 2. Manejo de Datos
 
