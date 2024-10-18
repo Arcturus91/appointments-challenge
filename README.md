@@ -2,12 +2,12 @@
 
 ## 1. Diseño de Arquitectura
 
-![architecture Image](support-image-readme/appointment-challenge.drawio.png)
+![architecture Image](support-image-readme/appointmentChallenge.png)
 
 La arquitectura propuesta utiliza servicios serverless de AWS para crear un sistema que es escalable, mantenible y confiable para gendamiento de citas
 
 - AWS Cloudfront con WAF y Shield: Protección ante injección SQL y ataques DDoS, respectivamente.
-- API Gateway: Punto de acceso para solicitudes. Se implementó 3 rutas principales: 2 POST para Perú y Chile y un GET para recibir todas las citas.
+- API Gateway: Punto de acceso para solicitudes. Se implementó 4 rutas principales: 2 POST para Perú & Chile, 1 POST para cambiar status de citas y 1 GET para recibir todas las citas. Nota: Ruta POST para cambiar status hecha de manera manual.
 - SQS FIFO Queues: Cola tipo buffer para las solicitudes,con aseguramiento de orden y eliminación de duplicidad, en caso las citas dependan de cantidad de doctores disponibles y o se manden solicitudes duplicadas. Se consideró el appointmentId como identificador de duplicidad.
 - SQS DLQ Queues: Cola tipo Dead Letter para almacenar las citas fallidas (Creado manualmente)
 - Lambda Functions: Funciones serverless que procesan las citas por país.
@@ -53,6 +53,10 @@ Rutas:
 
 - https://d1c7g4k80qnjy0.cloudfront.net/Prod/appointments
 
+  Cambiar estado de las citas:
+
+- https://d1c7g4k80qnjy0.cloudfront.net/Prod/change-status
+
 Agregar nuevo país:
 
 1. Crear nueva cola SQS FIFO.
@@ -77,7 +81,7 @@ Soluciones para potenciles cuellos de botella:
 
 ## 5. Seguridad y Cumplimiento
 
-- Encriptación de datos en tránsito y reposo.
+- Encriptación de datos en tránsito (API GATEWAY and Cloudfront solo para endpoints HTTPS y Origin SSL protocol TLSv1.2 ) y reposo (encriptación SQS a través de Amazon SQS key (SSE-SQS)).
 - AWS WAF and AWS Shield en Cloudfront.
 - Logging con CloudWatch.
 - API Key in API Gateway
@@ -118,23 +122,38 @@ https://d1c7g4k80qnjy0.cloudfront.net/Prod/peru
 
 https://d1c7g4k80qnjy0.cloudfront.net/Prod/chile
 
+### Ruta POST (cambio de estado de cita):
+
+https://d1c7g4k80qnjy0.cloudfront.net/Prod/change-status
+
 **Importante**: Se requiere una clave API para acceder a estas rutas. La clave API es: `secretCat`
 
 ### Pasos para probar:
 
 1. Utilizar una herramienta como Postman o cURL para realizar las peticiones.
-2. Para las peticiones POST, incluir en el cuerpo de la solicitud los datos de la cita en formato JSON. Ejemplo:
+2. Para las peticiones POST a los países, incluir en el cuerpo de la solicitud los datos de la cita en formato JSON. Ejemplo:
 
 `{
   "appointmentId": "id-12345",
   "country": "Perú",
-  "status": "completed"
+  "status": "requested"
 }`
 
 3. Incluir la clave API en el header de la petición como `x-api-key: RbJvZFgIjL9a4UhysqZ9g4nkwHRfH9t982iSquWw`. API KEY real agregada aquí para efectos de la evaluación.
 4. Enviar solicitudes a las rutas correspondientes y verificar las respuestas.
+
+![test postman dynamodb Image](support-image-readme/test-postman-appointment-peru-requested.png)
+![test in dynamodb Image](support-image-readme/requested-in-dynamodb.png)
+
 5. Utilizar la ruta GET para consultar las citas creadas y verificar su estado.
 
-![test postman dynamodb Image](support-image-readme/test-postman-appointment-peru.png)
+![test consulting dynamo Image](support-image-readme/consulting-appointments.png)
 
-![test postman dynamodb Image](support-image-readme/test-postman-dynamodb.png)
+6. Utilizar la ruta POST con el id del appointment para cambiar el status de la cita
+
+`"appointmentId": "id-12345",
+  "status": "requested"
+`
+
+![test change status postman Image](support-image-readme/change-status-postman.png)
+![test change status dynamodb Image](support-image-readme/change-status-dynamodb.png)
