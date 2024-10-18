@@ -17,7 +17,7 @@ La arquitectura propuesta utiliza servicios serverless de AWS para crear un sist
 
 Flujo de datos:
 
-1. Solicitudes llegan a Clodufront edge, luego alcanzan API Gateway y se enrutan a colas SQS FIFO por país.
+1. Solicitudes llegan a Cloudfront edge, luego alcanzan API Gateway y se enrutan a colas SQS FIFO por país.
 2. Funciones Lambda procesan las solicitudes y actualizan DynamoDB.
 3. DynamoDB almacena los datos de las citas con actualizaciones de estado.
 
