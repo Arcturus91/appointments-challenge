@@ -14,7 +14,6 @@ exports.handler = async (event) => {
     const method = event.httpMethod;
     console.log(path, method);
 
-    // Perform a scan operation to get all items from the table
     const command = new ScanCommand({
       TableName: "Appointments",
     });
